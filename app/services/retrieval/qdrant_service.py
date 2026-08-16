@@ -2,7 +2,7 @@ import os
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams
 from langchain_qdrant import QdrantVectorStore
-from app.services.retrieval.embedding import get_embeddings
+from app.services.retrieval.embedding import get_embeddings_model
 from app.utils.logger import logger
 
 # Use a local folder for Qdrant storage (super fast for development)
@@ -19,7 +19,7 @@ def get_vector_store():
     """
     Returns the LangChain QdrantVectorStore instance connected to our local Qdrant.
     """
-    embeddings = get_embeddings()
+    embeddings = get_embeddings_model()
     
     if not client.collection_exists(COLLECTION_NAME):
         logger.info(f"Creating new Qdrant collection: {COLLECTION_NAME}")

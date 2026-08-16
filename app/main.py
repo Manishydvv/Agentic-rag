@@ -64,7 +64,7 @@ async def query_agent(request: QueryRequest):
         return {"response": cached_response, "source": "cache"}
     
     # ---- Run the LangGraph Agent ----
-    logger.info("Cache MISS → Running LangGraph Agent")
+    logger.info(f"Cache MISS -> Running LangGraph Agent")
     inputs = {
         "messages": [HumanMessage(content=request.query)],
         "documents": [],

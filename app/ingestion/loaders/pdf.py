@@ -9,7 +9,7 @@ Returns: List[Document] with page-level metadata.
 """
 
 import sys
-import fitz  # PyMuPDF
+import pymupdf
 from typing import List
 from langchain_core.documents import Document
 from app.utils.logger import logger
@@ -37,7 +37,7 @@ def parse_pdf(file_path: str) -> List[Document]:
     documents = []
 
     try:
-        doc = fitz.open(file_path)
+        doc = pymupdf.open(file_path)
         total_pages = len(doc)
         pages_text = []
 
@@ -79,7 +79,7 @@ def parse_pdf(file_path: str) -> List[Document]:
     return documents
 
 
-def _ocr_pdf(doc: fitz.Document, file_path: str) -> List[str]:
+def _ocr_pdf(doc: pymupdf.Document, file_path: str) -> List[str]:
     """OCR fallback using Tesseract. Returns list of per-page text strings."""
     try:
         import pytesseract
@@ -96,7 +96,7 @@ def _ocr_pdf(doc: fitz.Document, file_path: str) -> List[str]:
     pages_text = []
     for page_num, page in enumerate(doc):
         try:
-            mat = fitz.Matrix(300 / 72, 300 / 72)
+            mat = pymupdf.Matrix(300 / 72, 300 / 72)
             pix = page.get_pixmap(matrix=mat, alpha=False)
             img = Image.open(io.BytesIO(pix.tobytes("png")))
             text = pytesseract.image_to_string(img, lang="eng")

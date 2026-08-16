@@ -33,7 +33,7 @@ from app.ingestion.loaders.html import parse_html
 from app.ingestion.loaders.text import parse_text
 from app.ingestion.chunking.splitter import chunk_documents
 from app.ingestion.metadata.extractor import extract_metadata
-from app.services.retrieval.embedding import get_embeddings
+from app.services.retrieval.embedding import embed_texts
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Supported file extensions → loader functions
@@ -54,7 +54,7 @@ SUPPORTED_EXTENSIONS = {
 # Qdrant config
 # ──────────────────────────────────────────────────────────────────────────────
 COLLECTION_NAME = "documents"
-EMBEDDING_DIM = 384  # all-MiniLM-L6-v2 via FastEmbed
+EMBEDDING_DIM = 1536  # text-embedding-3-small via OpenAI
 
 
 def _get_qdrant_client() -> QdrantClient:
@@ -94,7 +94,7 @@ def process_file(
     filename = os.path.basename(file_path)
     ext = os.path.splitext(filename)[1].lower()
 
-    logger.info(f"{'─'*60}")
+    logger.info(f"-" * 60)
     logger.info(f"Processing: {filename}")
 
     # ── Step 1: Parse ─────────────────────────────────────────────
@@ -130,7 +130,7 @@ def process_file(
     # ── Step 4: Embed ─────────────────────────────────────────────
     texts = [chunk.page_content for chunk in chunks]
     logger.info(f"Embedding {len(texts)} chunks...")
-    embeddings = get_embeddings(texts)
+    embeddings = embed_texts(texts)
 
     if len(embeddings) != len(chunks):
         logger.error(f"Embedding count mismatch. Skipping '{filename}'.")
@@ -163,7 +163,7 @@ def process_file(
 
     client.upsert(collection_name=COLLECTION_NAME, points=points)
     logger.info(
-        f"✅ Indexed {len(points)} chunks from '{filename}' "
+        f"Indexed {len(points)} chunks from '{filename}' "
         f"(title: '{doc_metadata['title']}')"
     )
 
@@ -204,7 +204,7 @@ def run_ingestion(path: str, wipe: bool = False, extract_meta: bool = True):
     _ensure_collection(client, wipe=wipe)
 
     logger.info(f"{'═'*60}")
-    logger.info(f"🚀 Ingestion Pipeline Started")
+    logger.info(f"Ingestion Pipeline Started")
     logger.info(f"   Path         : {path}")
     logger.info(f"   Wipe         : {wipe}")
     logger.info(f"   LLM Metadata : {extract_meta}")
@@ -225,10 +225,10 @@ def run_ingestion(path: str, wipe: bool = False, extract_meta: bool = True):
     total_chunks = sum(r["chunks"] for r in results)
 
     logger.info(f"{'═'*60}")
-    logger.info(f"🏁 Ingestion Complete!")
-    logger.info(f"   ✅ Processed  : {len(success)} file(s)")
-    logger.info(f"   ⏩ Skipped    : {len(skipped)} file(s)")
-    logger.info(f"   📦 Total Chunks in Qdrant: {total_chunks}")
+    logger.info(f"Ingestion Complete!")
+    logger.info(f"   Processed  : {len(success)} file(s)")
+    logger.info(f"   Skipped    : {len(skipped)} file(s)")
+    logger.info(f"   Total Chunks in Qdrant: {total_chunks}")
     logger.info(f"{'═'*60}")
 
 

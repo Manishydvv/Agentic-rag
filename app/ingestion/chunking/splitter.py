@@ -45,7 +45,7 @@ def chunk_documents(documents: List[Document]) -> List[Document]:
 
     total_chars = sum(len(d.page_content) for d in documents)
     logger.info(
-        f"Chunker: {len(documents)} document(s) ({total_chars} chars) → "
+        f"Chunker: {len(documents)} document(s) ({total_chars} chars) -> "
         f"{len(clean_chunks)} chunks "
         f"(size={CHUNK_SIZE}, overlap={CHUNK_OVERLAP})"
     )

@@ -1,7 +1,7 @@
 import json
 import numpy as np
 import redis
-from app.services.retrieval.embedding import get_embeddings
+from app.services.retrieval.embedding import get_embeddings_model
 from app.config import settings
 from app.utils.logger import logger
 
@@ -25,7 +25,7 @@ def check_cache(query: str) -> str | None:
     Returns the cached response if found (HIT), or None (MISS).
     """
     try:
-        embeddings = get_embeddings()
+        embeddings = get_embeddings_model()
         query_embedding = embeddings.embed_query(query)
         
         # Get all cached keys
@@ -71,7 +71,7 @@ def save_to_cache(query: str, response: str):
     Save a query-response pair to the Redis cache along with the query embedding.
     """
     try:
-        embeddings = get_embeddings()
+        embeddings = get_embeddings_model()
         query_embedding = embeddings.embed_query(query)
         
         cache_entry = {

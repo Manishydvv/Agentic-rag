@@ -1,0 +1,15 @@
+define user express greeting
+  "Hello"
+  "Hi"
+  "Hey"
+
+define bot express greeting
+  "Hello! How can I help you with your documents today?"
+
+define flow greeting
+  user express greeting
+  bot express greeting
+
+# Override the default block message with a unique marker
+define bot refuse to respond
+  "<<GUARDRAIL_BLOCKED>>"

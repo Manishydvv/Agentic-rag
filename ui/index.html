@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic RAG — Enterprise AI Assistant</title>
+    <meta name="description" content="Enterprise AI Assistant powered by LangGraph, Qdrant & Portkey">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ════════════════════════════════════════════
+           RESET & BASE
+           ════════════════════════════════════════════ */
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a14;
+            --bg-secondary: #111128;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --bg-card-hover: rgba(255, 255, 255, 0.06);
+            --border: rgba(255, 255, 255, 0.06);
+            --border-focus: rgba(102, 126, 234, 0.5);
+            --text-primary: #e6e8f0;
+            --text-secondary: #8892b0;
+            --text-muted: #5a6180;
+            --accent-1: #667eea;
+            --accent-2: #764ba2;
+            --accent-3: #f093fb;
+            --gradient-main: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            --gradient-cache: linear-gradient(135deg, #00d26a 0%, #00b894 100%);
+            --gradient-guardrail: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            --gradient-agent: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --shadow-glow: 0 0 40px rgba(102, 126, 234, 0.08);
+            --radius: 16px;
+            --radius-sm: 10px;
+            --radius-xs: 6px;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ════════════════════════════════════════════
+           LAYOUT
+           ════════════════════════════════════════════ */
+        .app-layout {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* ════════════════════════════════════════════
+           SIDEBAR
+           ════════════════════════════════════════════ */
+        .sidebar {
+            width: 280px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem;
+            gap: 1.2rem;
+            flex-shrink: 0;
+        }
+
+        .sidebar-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-brand .logo {
+            width: 40px;
+            height: 40px;
+            background: var(--gradient-main);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+        }
+
+        .sidebar-brand h2 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            background: var(--gradient-main);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            color: transparent;
+        }
+
+        .sidebar-brand span {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .sidebar-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 1rem;
+        }
+
+        .sidebar-section h3 {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--accent-1);
+            margin-bottom: 0.8rem;
+        }
+
+        /* Status */
+        .status-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .status-dot.online {
+            background: #00d26a;
+            box-shadow: 0 0 10px rgba(0, 210, 106, 0.5);
+        }
+
+        .status-dot.offline {
+            background: #ff4444;
+            box-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .status-text {
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.6rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            padding: 0.6rem 0.8rem;
+            text-align: center;
+        }
+
+        .stat-card .value {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .stat-card .label {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 2px;
+        }
+
+        /* Pipeline */
+        .pipeline-step {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.45rem 0;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .pipeline-step .num {
+            width: 22px;
+            height: 22px;
+            background: var(--gradient-main);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        /* Clear Button */
+        .btn-clear {
+            margin-top: auto;
+            padding: 0.7rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-clear:hover {
+            background: rgba(255, 68, 68, 0.1);
+            border-color: rgba(255, 68, 68, 0.3);
+            color: #ff6b6b;
+        }
+
+        /* ════════════════════════════════════════════
+           MAIN CHAT AREA
+           ════════════════════════════════════════════ */
+        .main-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        /* Header */
+        .chat-header {
+            padding: 1.5rem 2rem;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(180deg, rgba(102, 126, 234, 0.05) 0%, transparent 100%);
+        }
+
+        .chat-header h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            background: var(--gradient-main);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            color: transparent;
+            margin-bottom: 0.3rem;
+        }
+
+        .chat-header p {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            font-weight: 300;
+        }
+
+        /* Messages Container */
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.2rem;
+        }
+
+        /* Welcome */
+        .welcome-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            text-align: center;
+            gap: 1.5rem;
+            opacity: 0.7;
+        }
+
+        .welcome-icon {
+            font-size: 3.5rem;
+            background: var(--gradient-main);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            color: transparent;
+        }
+
+        .welcome-screen h2 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .welcome-screen p {
+            color: var(--text-muted);
+            max-width: 400px;
+            line-height: 1.6;
+            font-size: 0.9rem;
+        }
+
+        .suggestions {
+            display: flex;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 0.5rem;
+        }
+
+        .suggestion-chip {
+            padding: 0.5rem 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .suggestion-chip:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--accent-1);
+            color: var(--accent-1);
+            transform: translateY(-1px);
+        }
+
+        /* Message Bubble */
+        .message {
+            display: flex;
+            gap: 0.8rem;
+            max-width: 85%;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .message.user .message-avatar {
+            background: var(--gradient-main);
+        }
+
+        .message.assistant .message-avatar {
+            background: rgba(102, 126, 234, 0.15);
+            border: 1px solid rgba(102, 126, 234, 0.3);
+        }
+
+        .message-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 0.9rem 1.2rem;
+            line-height: 1.65;
+            font-size: 0.9rem;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.15), rgba(118, 75, 162, 0.15));
+            border-color: rgba(102, 126, 234, 0.2);
+        }
+
+        .message-meta {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .source-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: white;
+        }
+
+        .source-badge.agent { background: var(--gradient-agent); }
+        .source-badge.cache { background: var(--gradient-cache); }
+        .source-badge.guardrail { background: var(--gradient-guardrail); }
+
+        .time-badge {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        /* Typing indicator */
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 0.5rem 0;
+        }
+
+        .typing-indicator span {
+            width: 7px;
+            height: 7px;
+            background: var(--accent-1);
+            border-radius: 50%;
+            animation: bounce 1.4s ease-in-out infinite;
+        }
+
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes bounce {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+            30% { transform: translateY(-6px); opacity: 1; }
+        }
+
+        /* ════════════════════════════════════════════
+           INPUT AREA
+           ════════════════════════════════════════════ */
+        .input-area {
+            padding: 1rem 2rem 1.5rem;
+            border-top: 1px solid var(--border);
+            background: linear-gradient(0deg, rgba(102, 126, 234, 0.03) 0%, transparent 100%);
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 0.6rem;
+            align-items: center;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 0.4rem 0.5rem 0.4rem 1.2rem;
+            transition: all 0.3s;
+            box-shadow: var(--shadow-glow);
+        }
+
+        .input-wrapper:focus-within {
+            border-color: var(--border-focus);
+            box-shadow: 0 0 30px rgba(102, 126, 234, 0.12);
+        }
+
+        .input-wrapper input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.9rem;
+            padding: 0.6rem 0;
+        }
+
+        .input-wrapper input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .btn-send {
+            width: 42px;
+            height: 42px;
+            background: var(--gradient-main);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .btn-send:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-send:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .input-hint {
+            text-align: center;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        /* ════════════════════════════════════════════
+           SCROLLBAR
+           ════════════════════════════════════════════ */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(102, 126, 234, 0.2);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(102, 126, 234, 0.4);
+        }
+
+        /* ════════════════════════════════════════════
+           RESPONSIVE
+           ════════════════════════════════════════════ */
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .messages-container { padding: 1rem; }
+            .input-area { padding: 0.8rem 1rem 1rem; }
+            .chat-header h1 { font-size: 1.5rem; }
+            .message { max-width: 95%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- ═══════ SIDEBAR ═══════ -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="logo">🤖</div>
+                <div>
+                    <h2>Agentic RAG</h2>
+                    <span>Enterprise AI Assistant</span>
+                </div>
+            </div>
+
+            <!-- Status -->
+            <div class="sidebar-section">
+                <h3>System Status</h3>
+                <div class="status-row">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span class="status-text" id="statusText">Checking...</span>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="sidebar-section">
+                <h3>📊 Session Stats</h3>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="value" id="statTotal">0</div>
+                        <div class="label">Queries</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value" id="statCache">0</div>
+                        <div class="label">Cache Hits</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value" id="statAgent">0</div>
+                        <div class="label">Agent</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value" id="statBlocked">0</div>
+                        <div class="label">Blocked</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pipeline -->
+            <div class="sidebar-section">
+                <h3>🏗️ Pipeline</h3>
+                <div class="pipeline-step"><div class="num">1</div> 🛡️ NeMo Guardrails</div>
+                <div class="pipeline-step"><div class="num">2</div> ⚡ Redis Semantic Cache</div>
+                <div class="pipeline-step"><div class="num">3</div> 🧠 LangGraph Agent</div>
+                <div class="pipeline-step"><div class="num">4</div> 🔍 Qdrant Vector Search</div>
+                <div class="pipeline-step"><div class="num">5</div> 🤖 Portkey LLM Gateway</div>
+            </div>
+
+            <button class="btn-clear" onclick="clearChat()">🗑️ Clear Chat</button>
+        </aside>
+
+        <!-- ═══════ MAIN ═══════ -->
+        <main class="main-area">
+            <div class="chat-header">
+                <h1>Agentic RAG</h1>
+                <p>Enterprise AI Assistant powered by LangGraph, Qdrant & Portkey</p>
+            </div>
+
+            <div class="messages-container" id="messagesContainer">
+                <!-- Welcome screen -->
+                <div class="welcome-screen" id="welcomeScreen">
+                    <div class="welcome-icon">🧠</div>
+                    <h2>Ask anything about your documents</h2>
+                    <p>Your questions are processed through Guardrails, Semantic Cache, and an AI Agent with real-time vector search.</p>
+                    <div class="suggestions">
+                        <button class="suggestion-chip" onclick="askSuggestion(this)">What is Agentic RAG?</button>
+                        <button class="suggestion-chip" onclick="askSuggestion(this)">How does Qdrant work?</button>
+                        <button class="suggestion-chip" onclick="askSuggestion(this)">What is Portkey?</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-area">
+                <div class="input-wrapper">
+                    <input
+                        type="text"
+                        id="queryInput"
+                        placeholder="Ask me anything about your documents..."
+                        autocomplete="off"
+                        onkeydown="if(event.key === 'Enter') sendQuery()"
+                    >
+                    <button class="btn-send" id="sendBtn" onclick="sendQuery()">➤</button>
+                </div>
+                <div class="input-hint">Press Enter to send · Powered by GPT-4o-mini via Portkey</div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // ──────────────────────────────────────────
+        // State
+        // ──────────────────────────────────────────
+        const API_URL = window.location.origin;
+        const stats = { total: 0, cache: 0, agent: 0, blocked: 0 };
+        let isLoading = false;
+
+        // ──────────────────────────────────────────
+        // Health Check
+        // ──────────────────────────────────────────
+        async function checkHealth() {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            try {
+                const res = await fetch(`${API_URL}/health`, { signal: AbortSignal.timeout(3000) });
+                if (res.ok) {
+                    dot.className = 'status-dot online';
+                    text.textContent = 'Backend Online';
+                    text.style.color = '#00d26a';
+                } else {
+                    throw new Error();
+                }
+            } catch {
+                dot.className = 'status-dot offline';
+                text.textContent = 'Backend Offline';
+                text.style.color = '#ff4444';
+            }
+        }
+        checkHealth();
+        setInterval(checkHealth, 15000);
+
+        // ──────────────────────────────────────────
+        // Chat Logic
+        // ──────────────────────────────────────────
+        function addMessage(role, content, source = '', timeMs = 0) {
+            const container = document.getElementById('messagesContainer');
+            const welcome = document.getElementById('welcomeScreen');
+            if (welcome) welcome.style.display = 'none';
+
+            const msg = document.createElement('div');
+            msg.className = `message ${role}`;
+
+            const avatar = role === 'user' ? '👤' : '🤖';
+            let metaHtml = '';
+
+            if (source && role === 'assistant') {
+                const sourceLabels = {
+                    agent: '🤖 Agent',
+                    cache: '⚡ Cache Hit',
+                    guardrail: '🛡️ Blocked',
+                };
+                metaHtml = `
+                    <div class="message-meta">
+                        <span class="source-badge ${source}">${sourceLabels[source] || source}</span>
+                        <span class="time-badge">⏱ ${Math.round(timeMs)}ms</span>
+                    </div>
+                `;
+            }
+
+            msg.innerHTML = `
+                <div class="message-avatar">${avatar}</div>
+                <div>
+                    <div class="message-content">${escapeHtml(content)}</div>
+                    ${metaHtml}
+                </div>
+            `;
+
+            container.appendChild(msg);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function showTyping() {
+            const container = document.getElementById('messagesContainer');
+            const typing = document.createElement('div');
+            typing.className = 'message assistant';
+            typing.id = 'typingIndicator';
+            typing.innerHTML = `
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+                    <div class="typing-indicator">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            `;
+            container.appendChild(typing);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function removeTyping() {
+            const el = document.getElementById('typingIndicator');
+            if (el) el.remove();
+        }
+
+        async function sendQuery() {
+            if (isLoading) return;
+
+            const input = document.getElementById('queryInput');
+            const query = input.value.trim();
+            if (!query) return;
+
+            input.value = '';
+            isLoading = true;
+            document.getElementById('sendBtn').disabled = true;
+
+            addMessage('user', query);
+            showTyping();
+
+            const startTime = performance.now();
+
+            try {
+                const res = await fetch(`${API_URL}/query`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query }),
+                });
+
+                const data = await res.json();
+                const elapsed = performance.now() - startTime;
+
+                removeTyping();
+                addMessage('assistant', data.response, data.source, elapsed);
+
+                // Update stats
+                stats.total++;
+                if (data.source === 'cache') stats.cache++;
+                else if (data.source === 'agent') stats.agent++;
+                else if (data.source === 'guardrail') stats.blocked++;
+                updateStats();
+
+            } catch (err) {
+                removeTyping();
+                addMessage('assistant', '❌ Failed to connect to the backend. Is the server running?', 'error', 0);
+            }
+
+            isLoading = false;
+            document.getElementById('sendBtn').disabled = false;
+            input.focus();
+        }
+
+        function askSuggestion(el) {
+            document.getElementById('queryInput').value = el.textContent;
+            sendQuery();
+        }
+
+        function clearChat() {
+            const container = document.getElementById('messagesContainer');
+            container.innerHTML = `
+                <div class="welcome-screen" id="welcomeScreen">
+                    <div class="welcome-icon">🧠</div>
+                    <h2>Ask anything about your documents</h2>
+                    <p>Your questions are processed through Guardrails, Semantic Cache, and an AI Agent with real-time vector search.</p>
+                    <div class="suggestions">
+                        <button class="suggestion-chip" onclick="askSuggestion(this)">What is Agentic RAG?</button>
+                        <button class="suggestion-chip" onclick="askSuggestion(this)">How does Qdrant work?</button>
+                        <button class="suggestion-chip" onclick="askSuggestion(this)">What is Portkey?</button>
+                    </div>
+                </div>
+            `;
+            stats.total = 0;
+            stats.cache = 0;
+            stats.agent = 0;
+            stats.blocked = 0;
+            updateStats();
+        }
+
+        function updateStats() {
+            document.getElementById('statTotal').textContent = stats.total;
+            document.getElementById('statCache').textContent = stats.cache;
+            document.getElementById('statAgent').textContent = stats.agent;
+            document.getElementById('statBlocked').textContent = stats.blocked;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Focus input on load
+        document.getElementById('queryInput').focus();
+    </script>
+</body>
+</html>

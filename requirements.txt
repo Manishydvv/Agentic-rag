@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+langgraph
+langchain-core
+langchain-openai
+langchain-groq
+portkey-ai
+python-dotenv

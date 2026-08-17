@@ -5,29 +5,55 @@ from langchain_qdrant import QdrantVectorStore
 from app.services.retrieval.embedding import get_embeddings_model
 from app.utils.logger import logger
 
-# Use a local folder for Qdrant storage (super fast for development)
-LOCAL_QDRANT_PATH = ".qdrant"
-COLLECTION_NAME = "agentic_rag_docs"
+# ──────────────────────────────────────────────────────────────────────────────
+# Single Source of Truth for Qdrant Configuration
+# Both the ingestion pipeline (processor.py) and retriever use these values.
+# ──────────────────────────────────────────────────────────────────────────────
+QDRANT_PATH = "./qdrant_storage"
+COLLECTION_NAME = "documents"
+EMBEDDING_DIM = 1536  # text-embedding-3-small
 
 # Ensure the directory exists
-os.makedirs(LOCAL_QDRANT_PATH, exist_ok=True)
+os.makedirs(QDRANT_PATH, exist_ok=True)
 
 # Initialize the local client
-client = QdrantClient(path=LOCAL_QDRANT_PATH)
+client = QdrantClient(path=QDRANT_PATH)
+
+
+def get_qdrant_client() -> QdrantClient:
+    """Returns the shared Qdrant client instance."""
+    return client
+
+
+def ensure_collection(wipe: bool = False):
+    """Creates the collection if it doesn't exist. Optionally wipes it first."""
+    if wipe and client.collection_exists(COLLECTION_NAME):
+        logger.warning(f"Wiping collection '{COLLECTION_NAME}'...")
+        client.delete_collection(COLLECTION_NAME)
+        logger.info(f"Collection '{COLLECTION_NAME}' deleted.")
+
+    if not client.collection_exists(COLLECTION_NAME):
+        client.create_collection(
+            collection_name=COLLECTION_NAME,
+            vectors_config=VectorParams(size=EMBEDDING_DIM, distance=Distance.COSINE),
+        )
+        logger.info(f"Collection '{COLLECTION_NAME}' created.")
+
 
 def get_vector_store():
     """
-    Returns the LangChain QdrantVectorStore instance connected to our local Qdrant.
+    Returns the LangChain QdrantVectorStore instance for similarity search.
+    Used by the retriever node in the LangGraph agent.
     """
     embeddings = get_embeddings_model()
-    
+
     if not client.collection_exists(COLLECTION_NAME):
         logger.info(f"Creating new Qdrant collection: {COLLECTION_NAME}")
         client.create_collection(
             collection_name=COLLECTION_NAME,
-            vectors_config=VectorParams(size=1536, distance=Distance.COSINE),
+            vectors_config=VectorParams(size=EMBEDDING_DIM, distance=Distance.COSINE),
         )
-    
+
     vector_store = QdrantVectorStore(
         client=client,
         collection_name=COLLECTION_NAME,

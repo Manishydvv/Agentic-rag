@@ -2,14 +2,15 @@ from typing import List
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from app.utils.logger import logger
+from app.config import settings
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Configuration
 # chunk_size=1000 chars (~200-250 tokens): balances context vs. precision
 # chunk_overlap=150 chars (~15%): preserves context at chunk boundaries
 # ──────────────────────────────────────────────────────────────────────────────
-CHUNK_SIZE = 1000
-CHUNK_OVERLAP = 150
+CHUNK_SIZE = settings.CHUNK_SIZE
+CHUNK_OVERLAP = settings.CHUNK_OVERLAP
 
 # Separator priority: paragraph → sentence → word → character
 SEPARATORS = ["\n\n", "\n", ". ", "! ", "? ", "; ", ", ", " ", ""]

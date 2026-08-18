@@ -66,3 +66,7 @@ logs/
 # ════════════════════════════════════════════
 *.onnx
 .cache/
+
+# Local Agent Databases
+.qdrant/
+checkpoints.sqlite*

@@ -5,29 +5,69 @@ from app.utils.logger import logger
 
 def responder_node(state: AgentState):
     """
-    Generates the final response using the LLM and retrieved documents.
+    Synthesizes a response using both Documentation Context AND Conversation History.
     """
-    logger.info("RESPONDER: Generating final answer via Portkey")
+    query = state.get("current_query", "")
     messages = state.get("messages", [])
     documents = state.get("documents", [])
+    plan = state.get("plan", [])
     
-    # Format context
-    context = "\n".join([f"- {doc}" for doc in documents])
+    # Get conversation history for prompt injection
+    history_str = ""
+    if len(messages) > 1:
+        for msg in messages[:-1]:
+            role = "User" if msg.type == "human" else "Assistant"
+            history_str += f"{role}: {msg.content}\n"
+            
+    user_msg = messages[-1].content if messages else ""
     
-    # Get the latest user query
-    user_query = messages[-1].content if messages else ""
-    
-    system_prompt = f"""You are a helpful AI assistant. Answer the user's question using the provided context.
-    
-Context:
+    if query == "CONVERSATIONAL":
+        logger.info("RESPONDER: Generating conversational response using memory.")
+        system_prompt = f"""You are a friendly and helpful Enterprise AI Assistant.
+Answer the user's latest message using the CONVERSATION HISTORY below.
+
+CONVERSATION HISTORY:
+{history_str}
+"""
+    else:
+        logger.info("RESPONDER: Generating technical RAG response.")
+        # Format context
+        context = "\n".join([f"- {doc}" for doc in documents])
+        system_prompt = f"""You are a Senior Technical Architect.
+Answer the question using the TECHNICAL CONTEXT provided.
+
+TECHNICAL CONTEXT:
 {context}
+
+CONVERSATION HISTORY:
+{history_str}
 """
     
     llm = get_llm()
-    response = llm.invoke([
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=user_query)
-    ])
-    
-    logger.info("RESPONDER: Answer generated successfully")
-    return {"messages": [response]}
+    try:
+        response = llm.invoke([
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_msg)
+        ])
+        
+        logger.info("RESPONDER: Answer generated successfully")
+        
+        # Save to L1 Cache if this was a brand new stateless question
+        if len(messages) == 1:
+            from app.services.cache.redis_semantic_cache import save_to_cache
+            save_to_cache(user_msg, response.content)
+            logger.info("RESPONDER: Saved response to L1 Redis Cache.")
+            
+        return {
+            "messages": [response],
+            "status": "Response generated.",
+            "plan": plan + ["Response Synthesized"]
+        }
+    except Exception as e:
+        logger.error(f"RESPONDER: LLM Generation failed: {e}")
+        error_msg = AIMessage(content="I'm sorry, I encountered an error generating the response.")
+        return {
+            "messages": [error_msg],
+            "status": "Generation failed.",
+            "plan": plan + [f"Error: {str(e)}"]
+        }

@@ -33,10 +33,13 @@ async def serve_frontend():
 
 class QueryRequest(BaseModel):
     query: str
+    session_id: str | None = None
 
 class QueryResponse(BaseModel):
     response: str
     source: str  # "cache", "agent", or "guardrail"
+    plan: list[str] = []
+    status: str = ""
 
 @app.get("/health")
 def health_check():
@@ -54,33 +57,37 @@ async def query_agent(request: QueryRequest):
         logger.warning(f"Query BLOCKED by guardrails in {elapsed:.0f}ms")
         return {"response": guardrail_result["message"], "source": "guardrail"}
     
-    # ---- GATE 2: Semantic Cache Check ----
-    logger.info(f"GATE 2: Checking semantic cache for: '{request.query}'")
-    cached_response = check_cache(request.query)
-    
-    if cached_response:
-        elapsed = (time.time() - start_time) * 1000
-        logger.info(f"Returning cached response in {elapsed:.0f}ms")
-        return {"response": cached_response, "source": "cache"}
-    
-    # ---- Run the LangGraph Agent ----
-    logger.info(f"Cache MISS -> Running LangGraph Agent")
+    # ---- GATE 2: Invoke Agentic RAG Pipeline ----
+    logger.info(f"Running LangGraph Agent")
     inputs = {
         "messages": [HumanMessage(content=request.query)],
         "documents": [],
-        "next_step": ""
+        "next_step": "",
+        "current_query": "",
+        "plan": [],
+        "status": ""
     }
     
-    result = app_graph.invoke(inputs)
-    final_message = result["messages"][-1].content
+    # Configure checkpointer thread
+    config = {"configurable": {"thread_id": request.session_id or "default"}}
     
-    # Save the result to cache for next time
-    save_to_cache(request.query, final_message)
+    result = app_graph.invoke(inputs, config=config)
+    final_message = result["messages"][-1].content
+    plan = result.get("plan", [])
+    status = result.get("status", "Done")
+    
+    # Determine source for UI
+    source = "cache" if result.get("next_step") == "cache" else "agent"
     
     elapsed = (time.time() - start_time) * 1000
     logger.info(f"Agent response generated in {elapsed:.0f}ms")
     
-    return {"response": final_message, "source": "agent"}
+    return {
+        "response": final_message, 
+        "source": source,
+        "plan": plan,
+        "status": status
+    }
 
 if __name__ == "__main__":
     import uvicorn

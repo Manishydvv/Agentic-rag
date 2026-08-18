@@ -643,6 +643,14 @@
         const API_URL = window.location.origin;
         const stats = { total: 0, cache: 0, agent: 0, blocked: 0 };
         let isLoading = false;
+        
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+        let currentSessionId = generateUUID();
 
         // ──────────────────────────────────────────
         // Health Check
@@ -671,7 +679,7 @@
         // ──────────────────────────────────────────
         // Chat Logic
         // ──────────────────────────────────────────
-        function addMessage(role, content, source = '', timeMs = 0) {
+        function addMessage(role, content, source = '', timeMs = 0, plan = []) {
             const container = document.getElementById('messagesContainer');
             const welcome = document.getElementById('welcomeScreen');
             if (welcome) welcome.style.display = 'none';
@@ -681,6 +689,15 @@
 
             const avatar = role === 'user' ? '👤' : '🤖';
             let metaHtml = '';
+            let planHtml = '';
+
+            if (plan && plan.length > 0) {
+                planHtml = `<div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px;">`;
+                plan.forEach(step => {
+                    planHtml += `<span style="font-size: 0.7rem; background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border);">${step}</span>`;
+                });
+                planHtml += `</div>`;
+            }
 
             if (source && role === 'assistant') {
                 const sourceLabels = {
@@ -700,6 +717,7 @@
                 <div class="message-avatar">${avatar}</div>
                 <div>
                     <div class="message-content">${escapeHtml(content)}</div>
+                    ${planHtml}
                     ${metaHtml}
                 </div>
             `;
@@ -750,14 +768,14 @@
                 const res = await fetch(`${API_URL}/query`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query }),
+                    body: JSON.stringify({ query, session_id: currentSessionId }),
                 });
 
                 const data = await res.json();
                 const elapsed = performance.now() - startTime;
 
                 removeTyping();
-                addMessage('assistant', data.response, data.source, elapsed);
+                addMessage('assistant', data.response, data.source, elapsed, data.plan);
 
                 // Update stats
                 stats.total++;
@@ -799,6 +817,7 @@
             stats.cache = 0;
             stats.agent = 0;
             stats.blocked = 0;
+            currentSessionId = generateUUID(); // Reset session on clear
             updateStats();
         }
 

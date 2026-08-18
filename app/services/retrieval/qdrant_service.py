@@ -4,14 +4,15 @@ from qdrant_client.http.models import Distance, VectorParams
 from langchain_qdrant import QdrantVectorStore
 from app.services.retrieval.embedding import get_embeddings_model
 from app.utils.logger import logger
+from app.config import settings
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Single Source of Truth for Qdrant Configuration
 # Both the ingestion pipeline (processor.py) and retriever use these values.
 # ──────────────────────────────────────────────────────────────────────────────
-QDRANT_PATH = "./qdrant_storage"
-COLLECTION_NAME = "documents"
-EMBEDDING_DIM = 1536  # text-embedding-3-small
+QDRANT_PATH = settings.QDRANT_PATH
+COLLECTION_NAME = settings.COLLECTION_NAME
+EMBEDDING_DIM = settings.EMBEDDING_DIM
 
 # Ensure the directory exists
 os.makedirs(QDRANT_PATH, exist_ok=True)

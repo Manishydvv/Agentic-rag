@@ -4,23 +4,33 @@ from app.utils.logger import logger
 
 def retriever_node(state: AgentState):
     """
-    Retrieves documents from Qdrant Vector DB based on the query.
+    Retrieves documents from Qdrant Vector DB based on the rewritten query.
     """
-    messages = state.get("messages", [])
-    user_query = messages[-1].content if messages else ""
+    query = state.get("current_query", "")
+    plan = state.get("plan", [])
     
-    logger.info(f"RETRIEVER: Searching Qdrant for: '{user_query}'")
+    logger.info(f"RETRIEVER: Searching Qdrant for: '{query}'")
     
     try:
         vector_store = get_vector_store()
         
-        # Retrieve top 3 chunks
-        results = vector_store.similarity_search(user_query, k=3)
-        documents = [doc.page_content for doc in results]
+        # Retrieve top 5 chunks
+        results = vector_store.similarity_search(query, k=5)
+        
+        # Format the documents clearly for the LLM
+        documents = [f"CONTENT: {doc.page_content}" for doc in results]
         
         logger.info(f"RETRIEVER: Found {len(documents)} relevant chunks")
-        return {"documents": documents}
+        return {
+            "documents": documents,
+            "status": "Found technical context.",
+            "plan": plan + ["Context Retrieved"]
+        }
         
     except Exception as e:
         logger.error(f"RETRIEVER: Failed to search Qdrant: {e}")
-        return {"documents": []}
+        return {
+            "documents": [],
+            "status": "Failed to retrieve context.",
+            "plan": plan + [f"Retrieval Error: {str(e)}"]
+        }

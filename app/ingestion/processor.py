@@ -41,6 +41,7 @@ from app.services.retrieval.qdrant_service import (
     ensure_collection,
     COLLECTION_NAME,
 )
+from app.config import settings
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Supported file extensions -> loader functions
@@ -58,7 +59,7 @@ SUPPORTED_EXTENSIONS = {
 }
 
 # Max chunks per embedding API call (avoids OpenAI token limits)
-EMBED_BATCH_SIZE = 100
+EMBED_BATCH_SIZE = settings.EMBED_BATCH_SIZE
 
 
 # ──────────────────────────────────────────────────────────────────────────────

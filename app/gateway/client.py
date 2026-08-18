@@ -13,7 +13,8 @@ def get_llm():
 
     portkey_headers = {
         "x-portkey-api-key": settings.PORTKEY_API_KEY,
-        "x-portkey-config": "pc-portke-36acb4" 
+        "x-portkey-config": "pc-portke-36acb4",
+        "x-portkey-cache": "semantic" # Enable L2 Semantic Edge Cache
     }
     
     return ChatOpenAI(

@@ -2,9 +2,13 @@ from app.agents.state import AgentState
 from app.services.retrieval.qdrant_service import get_vector_store
 from app.utils.logger import logger
 
+from langchain_classic.retrievers import ContextualCompressionRetriever
+from app.config import settings
+from app.services.retrieval.reranker_service import get_reranker
+
 def retriever_node(state: AgentState):
     """
-    Retrieves documents from Qdrant Vector DB based on the rewritten query.
+    Retrieves documents from Qdrant Vector DB, then reranks them using a Cross-Encoder.
     """
     query = state.get("current_query", "")
     plan = state.get("plan", [])
@@ -13,18 +17,25 @@ def retriever_node(state: AgentState):
     
     try:
         vector_store = get_vector_store()
+        base_retriever = vector_store.as_retriever(search_kwargs={"k": settings.TOP_K_RETRIEVE})
         
-        # Retrieve top 5 chunks
-        results = vector_store.similarity_search(query, k=5)
+        # Wrap in compression retriever
+        compression_retriever = ContextualCompressionRetriever(
+            base_compressor=get_reranker(),
+            base_retriever=base_retriever
+        )
+        
+        # Retrieve and Rerank
+        results = compression_retriever.invoke(query)
         
         # Format the documents clearly for the LLM
         documents = [f"CONTENT: {doc.page_content}" for doc in results]
         
-        logger.info(f"RETRIEVER: Found {len(documents)} relevant chunks")
+        logger.info(f"RETRIEVER: Found {settings.TOP_K_RETRIEVE} chunks -> Reranked to {len(documents)} chunks")
         return {
             "documents": documents,
-            "status": "Found technical context.",
-            "plan": plan + ["Context Retrieved"]
+            "status": "Found and reranked context.",
+            "plan": plan + [f"Context Retrieved & Reranked (Top {len(documents)})"]
         }
         
     except Exception as e:

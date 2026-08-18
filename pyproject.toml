@@ -33,4 +33,9 @@ dependencies = [
     "python-pptx",
     "requests",
     "uvicorn>=0.52.3",
+    "tokenizers<0.23.1",
+    "sentence-transformers>=6.0.0",
+    "langchain-huggingface>=1.2.2",
+    "langchain-classic>=1.0.8",
+    "transformers>=5.15.0",
 ]

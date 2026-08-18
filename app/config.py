@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP: int = 150
     EMBED_BATCH_SIZE: int = 100
     
+    # Reranking Configuration
+    TOP_K_RETRIEVE: int = 15
+    TOP_K_RERANK: int = 5
+    RERANKER_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    
     # Qdrant Configuration
     QDRANT_PATH: str = "./qdrant_storage"
     COLLECTION_NAME: str = "documents"

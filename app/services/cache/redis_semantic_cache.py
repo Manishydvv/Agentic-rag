@@ -90,3 +90,20 @@ def save_to_cache(query: str, response: str):
         logger.warning("CACHE: Redis is not available. Skipping save.")
     except Exception as e:
         logger.error(f"CACHE: Error saving to cache: {e}")
+
+def clear_cache():
+    """
+    Clears all keys in the semantic cache.
+    Called when a document is deleted to ensure no purged data is served.
+    """
+    try:
+        keys = redis_client.keys(f"{CACHE_PREFIX}*")
+        if keys:
+            redis_client.delete(*keys)
+            logger.info(f"CACHE: Flushed {len(keys)} entries due to knowledge base mutation.")
+        else:
+            logger.info("CACHE: Cache flush requested, but cache was already empty.")
+    except redis.ConnectionError:
+        logger.warning("CACHE: Redis is not available. Cannot clear cache.")
+    except Exception as e:
+        logger.error(f"CACHE: Error clearing cache: {e}")

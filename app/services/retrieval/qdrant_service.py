@@ -1,6 +1,7 @@
 import os
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams
+from qdrant_client.http import models as qdrant_models
 from langchain_qdrant import QdrantVectorStore
 from app.services.retrieval.embedding import get_embeddings_model
 from app.utils.logger import logger
@@ -61,3 +62,31 @@ def get_vector_store():
         embedding=embeddings,
     )
     return vector_store
+
+def delete_document_by_id(doc_id: str) -> bool:
+    """
+    Deletes all vector chunks associated with a specific document ID.
+    Uses the Qdrant payload filter to target the precise chunks.
+    """
+    try:
+        if not client.collection_exists(COLLECTION_NAME):
+            return False
+            
+        client.delete(
+            collection_name=COLLECTION_NAME,
+            points_selector=qdrant_models.FilterSelector(
+                filter=qdrant_models.Filter(
+                    must=[
+                        qdrant_models.FieldCondition(
+                            key="document_id",
+                            match=qdrant_models.MatchValue(value=doc_id),
+                        )
+                    ]
+                )
+            ),
+        )
+        logger.info(f"Qdrant: Successfully deleted vectors for document_id={doc_id}")
+        return True
+    except Exception as e:
+        logger.error(f"Qdrant: Failed to delete vectors for document_id={doc_id}: {e}")
+        return False

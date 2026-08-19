@@ -1,5 +1,8 @@
 import time
-from fastapi import FastAPI
+import os
+import uuid
+import shutil
+from fastapi import FastAPI, BackgroundTasks, UploadFile, File, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -10,6 +13,11 @@ from app.services.cache.redis_semantic_cache import check_cache, save_to_cache
 from app.guardrails.rails import check_guardrails
 from app.utils.logger import logger
 from app.config import settings
+
+from app.services.db.metadata_service import get_all_active_documents, create_document, update_document_status
+from app.services.retrieval.qdrant_service import delete_document_by_id, get_qdrant_client
+from app.services.cache.redis_semantic_cache import clear_cache
+from app.ingestion.processor import process_file
 
 app = FastAPI(
     title="Agentic RAG API",
@@ -88,6 +96,56 @@ async def query_agent(request: QueryRequest):
         "plan": plan,
         "status": status
     }
+
+# ==========================================
+# Document Lifecycle Management (CRUD)
+# ==========================================
+
+@app.get("/api/documents")
+def get_documents():
+    """Lists all active and processing documents in the knowledge base."""
+    docs = get_all_active_documents()
+    return {"documents": docs}
+
+@app.post("/api/documents", status_code=status.HTTP_202_ACCEPTED)
+async def upload_document(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+    """Async upload and ingestion of a new document."""
+    doc_id = str(uuid.uuid4())
+    filename = file.filename or "unknown"
+    
+    # Save the file temporarily
+    os.makedirs("data", exist_ok=True)
+    file_path = os.path.join("data", f"{doc_id}_{filename}")
+    
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    # Write processing status to SQLite
+    create_document(doc_id, filename)
+    
+    # Dispatch processing to a background task
+    qdrant_client = get_qdrant_client()
+    background_tasks.add_task(process_file, file_path, qdrant_client, extract_meta=True, force=True, doc_id=doc_id)
+    
+    return {"message": "Document accepted for processing", "doc_id": doc_id, "status": "processing"}
+
+@app.delete("/api/documents/{doc_id}")
+def delete_document(doc_id: str):
+    """Purges a document from Qdrant, invalidates the cache, and soft-deletes in SQLite."""
+    # 1. Phase 1: Qdrant Hard Delete
+    success = delete_document_by_id(doc_id)
+    if not success:
+        # We don't fail immediately, we just log it. 
+        # Maybe Qdrant already didn't have it, but we still want to soft-delete.
+        logger.warning(f"Could not delete vectors for {doc_id} from Qdrant.")
+        
+    # 2. Phase 2: Cache Invalidation
+    clear_cache()
+    
+    # 3. Phase 3: SQLite Soft Delete
+    update_document_status(doc_id, "deleted")
+    
+    return {"message": f"Document {doc_id} successfully deleted and cache invalidated."}
 
 if __name__ == "__main__":
     import uvicorn

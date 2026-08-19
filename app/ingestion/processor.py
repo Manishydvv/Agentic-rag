@@ -22,8 +22,9 @@ import os
 import re
 import sys
 import uuid
+import traceback
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 
 from qdrant_client.http import models as qdrant_models
 from langchain_core.documents import Document
@@ -41,6 +42,7 @@ from app.services.retrieval.qdrant_service import (
     ensure_collection,
     COLLECTION_NAME,
 )
+from app.services.db.metadata_service import update_document_status
 from app.config import settings
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -162,6 +164,7 @@ def process_file(
     client,
     extract_meta: bool = True,
     force: bool = False,
+    doc_id: Optional[str] = None,
 ) -> dict:
     """
     Full pipeline for a single file:
@@ -179,95 +182,120 @@ def process_file(
     logger.info(f"-" * 60)
     logger.info(f"Processing: {filename}")
 
-    # ── Step 0: Check supported ───────────────────────────────────
-    parser = SUPPORTED_EXTENSIONS.get(ext)
-    if not parser:
-        logger.warning(f"Skipping unsupported file: {filename}")
-        return {"file": filename, "status": "skipped", "chunks": 0}
+    try:
+        # ── Step 0: Check supported ───────────────────────────────────
+        parser = SUPPORTED_EXTENSIONS.get(ext)
+        if not parser:
+            logger.warning(f"Skipping unsupported file: {filename}")
+            if doc_id:
+                update_document_status(doc_id, "failed", 0, f"Unsupported file type: {ext}")
+            return {"file": filename, "status": "skipped", "chunks": 0}
 
-    # ── Step 1: Duplicate Detection ───────────────────────────────
-    file_hash = _compute_file_hash(file_path)
-    if not force and _is_already_ingested(client, file_path, file_hash):
-        logger.info(f"SKIP: '{filename}' already ingested (hash match). Use --force to re-ingest.")
-        return {"file": filename, "status": "already_ingested", "chunks": 0}
+        # ── Step 1: Duplicate Detection ───────────────────────────────
+        file_hash = _compute_file_hash(file_path)
+        if not force and _is_already_ingested(client, file_path, file_hash):
+            logger.info(f"SKIP: '{filename}' already ingested (hash match). Use --force to re-ingest.")
+            if doc_id:
+                update_document_status(doc_id, "failed", 0, "Already ingested (hash match)")
+            return {"file": filename, "status": "already_ingested", "chunks": 0}
 
-    # If file was previously ingested with a different hash, delete old chunks
-    _delete_file_chunks(client, file_path)
+        # If file was previously ingested with a different hash, delete old chunks
+        _delete_file_chunks(client, file_path)
 
-    # ── Step 2: Parse ─────────────────────────────────────────────
-    documents: List[Document] = parser(file_path)
-    if not documents:
-        logger.warning(f"No content extracted from: {filename}")
-        return {"file": filename, "status": "empty", "chunks": 0}
+        # ── Step 2: Parse ─────────────────────────────────────────────
+        documents: List[Document] = parser(file_path)
+        if not documents:
+            logger.warning(f"No content extracted from: {filename}")
+            if doc_id:
+                update_document_status(doc_id, "failed", 0, "No content could be extracted")
+            return {"file": filename, "status": "empty", "chunks": 0}
 
-    # ── Step 3: Clean Text ────────────────────────────────────────
-    for doc in documents:
-        doc.page_content = _clean_text(doc.page_content)
-    # Remove docs that became empty after cleaning
-    documents = [d for d in documents if d.page_content]
+        # ── Step 3: Clean Text ────────────────────────────────────────
+        for doc in documents:
+            doc.page_content = _clean_text(doc.page_content)
+        # Remove docs that became empty after cleaning
+        documents = [d for d in documents if d.page_content]
 
-    # ── Step 4: Chunk ─────────────────────────────────────────────
-    chunks: List[Document] = chunk_documents(documents)
-    if not chunks:
-        return {"file": filename, "status": "no_chunks", "chunks": 0}
+        # ── Step 4: Chunk ─────────────────────────────────────────────
+        chunks: List[Document] = chunk_documents(documents)
+        if not chunks:
+            if doc_id:
+                update_document_status(doc_id, "failed", 0, "Failed to create any chunks")
+            return {"file": filename, "status": "no_chunks", "chunks": 0}
 
-    # ── Step 5: LLM Metadata Extraction ──────────────────────────
-    sample_text = documents[0].page_content
-    if extract_meta:
-        doc_metadata = extract_metadata(sample_text, filename=filename)
-    else:
-        doc_metadata = {
-            "title": filename,
-            "summary": "",
-            "keywords": [],
-            "document_type": "general",
-            "language": "en",
-        }
+        # ── Step 5: LLM Metadata Extraction ──────────────────────────
+        sample_text = documents[0].page_content
+        if extract_meta:
+            doc_metadata = extract_metadata(sample_text, filename=filename)
+        else:
+            doc_metadata = {
+                "title": filename,
+                "summary": "",
+                "keywords": [],
+                "document_type": "general",
+                "language": "en",
+            }
 
-    # ── Step 6: Embed (batched) ───────────────────────────────────
-    texts = [chunk.page_content for chunk in chunks]
-    logger.info(f"Embedding {len(texts)} chunks...")
-    embeddings = _batch_embed(texts)
+        # ── Step 6: Embed (batched) ───────────────────────────────────
+        texts = [chunk.page_content for chunk in chunks]
+        logger.info(f"Embedding {len(texts)} chunks...")
+        embeddings = _batch_embed(texts)
 
-    if len(embeddings) != len(chunks):
-        logger.error(f"Embedding count mismatch. Skipping '{filename}'.")
-        return {"file": filename, "status": "embed_error", "chunks": 0}
+        if len(embeddings) != len(chunks):
+            logger.error(f"Embedding count mismatch. Skipping '{filename}'.")
+            if doc_id:
+                update_document_status(doc_id, "failed", 0, "Embedding count mismatch")
+            return {"file": filename, "status": "embed_error", "chunks": 0}
 
-    # ── Step 7: Upsert to Qdrant ──────────────────────────────────
-    ingested_at = datetime.now(timezone.utc).isoformat()
-    points = []
-    for i, (chunk, vector) in enumerate(zip(chunks, embeddings)):
-        payload = {
-            # Content
-            "text": chunk.page_content,
-            "chunk_index": i,
-            "total_chunks": len(chunks),
-            # From loader (structural metadata)
-            **chunk.metadata,
-            # From LLM extractor (semantic metadata)
-            "doc_title": doc_metadata["title"],
-            "doc_summary": doc_metadata["summary"],
-            "keywords": doc_metadata["keywords"],
-            "document_type": doc_metadata["document_type"],
-            "language": doc_metadata["language"],
-            # Tracking metadata
-            "file_hash": file_hash,
-            "ingested_at": ingested_at,
-        }
+        # ── Step 7: Upsert to Qdrant ──────────────────────────────────
+        ingested_at = datetime.now(timezone.utc).isoformat()
+        points = []
+    
+        # Use provided doc_id or fallback to file_hash
+        target_doc_id = doc_id or file_hash
+    
+        for i, (chunk, vector) in enumerate(zip(chunks, embeddings)):
+            payload = {
+                # Content
+                "text": chunk.page_content,
+                "chunk_index": i,
+                "total_chunks": len(chunks),
+                # From loader (structural metadata)
+                **chunk.metadata,
+                # From LLM extractor (semantic metadata)
+                "doc_title": doc_metadata["title"],
+                "doc_summary": doc_metadata["summary"],
+                "keywords": doc_metadata["keywords"],
+                "document_type": doc_metadata["document_type"],
+                "language": doc_metadata["language"],
+                # Tracking metadata
+                "document_id": target_doc_id,
+                "file_hash": file_hash,
+                "ingested_at": ingested_at,
+            }
 
-        points.append(qdrant_models.PointStruct(
-            id=str(uuid.uuid4()),
-            vector=vector,
-            payload=payload,
-        ))
+            points.append(qdrant_models.PointStruct(
+                id=str(uuid.uuid4()),
+                vector=vector,
+                payload=payload,
+            ))
 
-    client.upsert(collection_name=COLLECTION_NAME, points=points)
-    logger.info(
-        f"Indexed {len(points)} chunks from '{filename}' "
-        f"(title: '{doc_metadata['title']}')"
-    )
+        client.upsert(collection_name=COLLECTION_NAME, points=points)
+        logger.info(
+            f"Indexed {len(points)} chunks from '{filename}' "
+            f"(title: '{doc_metadata['title']}')"
+        )
 
-    return {"file": filename, "status": "success", "chunks": len(points)}
+        if doc_id:
+            update_document_status(doc_id, "active", chunk_count=len(points))
+
+        return {"file": filename, "status": "success", "chunks": len(points)}
+    except Exception as e:
+        logger.error(f"Error processing file {filename}: {e}")
+        if doc_id:
+            import traceback
+            update_document_status(doc_id, "failed", 0, str(e) + "\n" + traceback.format_exc())
+        return {"file": filename, "status": "failed", "chunks": 0}
 
 
 def process_directory(

@@ -48,6 +48,7 @@ class QueryResponse(BaseModel):
     source: str  # "cache", "agent", or "guardrail"
     plan: list[str] = []
     status: str = ""
+    sources: list[str] = []
 
 @app.get("/health")
 def health_check():
@@ -83,6 +84,7 @@ async def query_agent(request: QueryRequest):
     final_message = result["messages"][-1].content
     plan = result.get("plan", [])
     status = result.get("status", "Done")
+    documents = result.get("documents", [])
     
     # Determine source for UI
     source = "cache" if result.get("next_step") == "cache" else "agent"
@@ -94,7 +96,8 @@ async def query_agent(request: QueryRequest):
         "response": final_message, 
         "source": source,
         "plan": plan,
-        "status": status
+        "status": status,
+        "sources": documents
     }
 
 # ==========================================

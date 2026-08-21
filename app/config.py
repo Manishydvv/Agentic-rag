@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     RERANKER_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     
     # Qdrant Configuration
+    QDRANT_URL: str = ""
     QDRANT_PATH: str = "./qdrant_storage"
     COLLECTION_NAME: str = "documents"
     EMBEDDING_DIM: int = 1536

@@ -32,9 +32,15 @@ CONVERSATION HISTORY:
     else:
         logger.info("RESPONDER: Generating technical RAG response.")
         # Format context
-        context = "\n".join([f"- {doc}" for doc in documents])
+        context = "\n".join([f"- {doc}" for doc in documents]) if documents else "No context found."
+        
         system_prompt = f"""You are a Senior Technical Architect.
-Answer the question using the TECHNICAL CONTEXT provided.
+Answer the user's question using ONLY the information provided in the TECHNICAL CONTEXT below. 
+
+CRITICAL RULES:
+1. If the answer cannot be found in the TECHNICAL CONTEXT, you MUST explicitly say: "I cannot answer this question based on the provided documents."
+2. DO NOT use your own outside knowledge. DO NOT hallucinate.
+3. If the TECHNICAL CONTEXT is empty or says "No context found", you MUST decline to answer.
 
 TECHNICAL CONTEXT:
 {context}

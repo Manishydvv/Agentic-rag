@@ -15,11 +15,15 @@ QDRANT_PATH = settings.QDRANT_PATH
 COLLECTION_NAME = settings.COLLECTION_NAME
 EMBEDDING_DIM = settings.EMBEDDING_DIM
 
-# Ensure the directory exists
-os.makedirs(QDRANT_PATH, exist_ok=True)
+# Ensure the directory exists if we are using local path
+if not settings.QDRANT_URL:
+    os.makedirs(QDRANT_PATH, exist_ok=True)
 
-# Initialize the local client
-client = QdrantClient(path=QDRANT_PATH)
+# Initialize the client (URL takes precedence over local path)
+if settings.QDRANT_URL:
+    client = QdrantClient(url=settings.QDRANT_URL)
+else:
+    client = QdrantClient(path=QDRANT_PATH)
 
 
 def get_qdrant_client() -> QdrantClient:
@@ -60,6 +64,7 @@ def get_vector_store():
         client=client,
         collection_name=COLLECTION_NAME,
         embedding=embeddings,
+        content_payload_key="text",
     )
     return vector_store
 

@@ -39,11 +39,23 @@ dependencies = [
     "langchain-classic>=1.0.8",
     "transformers>=5.15.0",
     "python-multipart>=0.0.32",
+    "torch",
+    "langgraph-checkpoint-sqlite",
+]
+
+[project.optional-dependencies]
+evals = [
     "streamlit>=1.62.0",
     "pandas>=2.3.3",
     "ragas>=0.4.3",
     "datasets>=5.0.1",
     "nest-asyncio>=1.6.0",
-    "torchvision>=0.28.0",
-    "langchain-google-vertexai>=3.2.4",
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }

@@ -11,7 +11,6 @@ An enterprise-grade, stateful Agentic Retrieval-Augmented Generation (RAG) syste
 ## ✨ Features
 
 - **Agentic Routing (LangGraph):** Stateful agents dynamically route queries between L1 Semantic Cache, Qdrant Vector Search, or conversational memory.
-- **Hybrid Search:** Combines dense vector embeddings and sparse keyword search via Qdrant Cloud.
 - **Enterprise Guardrails:** NVIDIA NeMo Guardrails intercept and block adversarial prompts, jailbreaks, and off-topic queries before they hit the LLM.
 - **Semantic Caching:** Redis Enterprise Cloud caches previous answers, returning instant results for repeated or semantically identical questions.
 - **Serverless PostgreSQL:** Neon Postgres tracks document ingestion status and provides persistent memory (checkpoints) for the LangGraph agents.

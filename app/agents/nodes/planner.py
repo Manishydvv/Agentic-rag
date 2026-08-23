@@ -40,8 +40,8 @@ def planner_node(state: AgentState):
             history += f"{role}: {msg.content}\n"
     
     prompt = f"""
-    You are an intelligent Assistant Planner. 
-    Analyze the conversation history and the latest user message.
+    You are a strictly logical Assistant Planner. 
+    Your ONLY job is to classify the user's latest message and decide if we need to search our documentation database.
     
     CONVERSATION HISTORY:
     {history}
@@ -49,11 +49,13 @@ def planner_node(state: AgentState):
     LATEST MESSAGE:
     "{user_message}"
     
-    Task:
-    1. If the latest message is a greeting (hi, hello) or a question that can be answered using ONLY the conversation history above (e.g., "what is my name", "explain the first one"), respond with 'CONVERSATIONAL'.
-    2. If it is a technical question that requires fresh documentation, output a highly specific refined search query optimized for a vector database.
+    Classification Rules:
+    1. If the message is a pure greeting ("hi", "hello"), a polite closing ("thanks"), or a direct reference to the immediate conversation history ("can you repeat that"), output EXACTLY: CONVERSATIONAL
+    2. If the message is a technical question, a request for facts, a coding question, or ANY query that would benefit from reading external documentation, you MUST output a highly specific search query optimized for a vector database.
     
-    Output ONLY 'CONVERSATIONAL' or the search query. No other text.
+    CRITICAL: Never try to answer technical questions from your own memory. If it is a technical question, ALWAYS output a search query.
+    
+    Output ONLY 'CONVERSATIONAL' or the refined search query. No other text whatsoever.
     """
     
     logger.info("PLANNER: Analyzing intent...")

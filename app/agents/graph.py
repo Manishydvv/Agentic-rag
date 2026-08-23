@@ -43,10 +43,12 @@ from app.config import settings
 from app.utils.logger import logger
 
 try:
-    # Use a ConnectionPool instead of a single connection to survive Neon dropping idle connections
+    # Use a ConnectionPool with aggressive idle timeouts to survive Neon Serverless dropping idle connections
     pool = ConnectionPool(
         conninfo=settings.DATABASE_URL,
         max_size=10,
+        max_idle=120,      # Proactively close connections after 2 mins of inactivity
+        max_lifetime=300,  # Recycle connections every 5 mins
         kwargs={"autocommit": True}
     )
     memory = PostgresSaver(pool)

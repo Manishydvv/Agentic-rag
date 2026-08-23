@@ -24,21 +24,33 @@ An enterprise-grade, stateful Agentic Retrieval-Augmented Generation (RAG) syste
 
 ```mermaid
 graph TD
-    User([User Request]) --> Guardrails[NeMo Guardrails]
-    Guardrails -- Blocked --> Reject[Reject Request]
-    Guardrails -- Passed --> Router[LangGraph Agent]
+    %% Main API Flow
+    User([User Request]) --> API[FastAPI /query]
+    API --> Guardrails[NeMo Guardrails]
     
-    Router --> CacheCheck{Redis Cache}
-    CacheCheck -- Hit --> ReturnCache[Return Instant Answer]
-    CacheCheck -- Miss --> Qdrant[(Qdrant Cloud)]
+    %% Guardrails
+    Guardrails -- Blocked --> Reject([Return Blocked Message])
+    Guardrails -- Passed --> GraphEntry[Enter LangGraph]
     
-    Qdrant --> LLM[Groq LLM]
-    LLM --> CacheSave[Save to Redis]
-    CacheSave --> Output([Final Answer])
+    %% LangGraph Flow
+    subgraph LangGraph [LangGraph Stateful Agent]
+        GraphEntry --> Planner[Planner Node]
+        
+        Planner -- next_step = cache --> CacheResponder[Cache Responder Node]
+        Planner -- next_step = retrieve --> Retriever[Retriever Node]
+        Planner -- next_step = respond --> Responder[Responder Node]
+        
+        Retriever -- fetches from Qdrant --> Responder
+    end
     
-    UI([Document Manager UI]) --> Postgres[(Neon Postgres DB)]
-    Postgres --> Ingestion[FastAPI Background Tasks]
-    Ingestion --> Qdrant
+    %% Exits
+    CacheResponder --> ReturnCache([Return Cached Answer])
+    Responder -- saves to Redis --> ReturnAnswer([Return LLM Answer])
+    
+    %% Document Ingestion (Background)
+    UI([Document Upload UI]) --> DB[(Neon Postgres metadata)]
+    DB --> BgTask[FastAPI Background Task]
+    BgTask -- chunks & embeds --> Qdrant[(Qdrant Cloud Vector DB)]
 ```
 
 ---

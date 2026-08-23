@@ -62,13 +62,13 @@ graph TD
     Streamlit --> LoadData[Load Golden Dataset]
     
     %% Phase 1
-    subgraph Phase 1 [Live Pipeline Testing]
+    subgraph Phase1 [Live Pipeline Testing]
         LoadData --> HitAPI[Hit FastAPI /query]
         HitAPI --> Capture[Capture Actual Responses & Contexts]
     end
     
     %% Phase 2
-    subgraph Phase 2 [RAGAS LLM-as-a-Judge]
+    subgraph Phase2 [RAGAS LLM-as-a-Judge]
         Capture --> Ragas[Ragas Metrics Engine]
         Ragas -- uses JUDGE_GROQ --> Groq[Groq API direct]
         
@@ -77,7 +77,7 @@ graph TD
         Groq --> Precision[Compute Context Precision]
     end
     
-    Phase 2 --> Results([Display Metrics & Badges])
+    Phase2 --> Results([Display Metrics & Badges])
 ```
 
 ---

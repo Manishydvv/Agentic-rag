@@ -1,88 +1,112 @@
-# 🤖 Agentic RAG
+# 🧠 Agentic RAG
 
-A highly optimized, enterprise-ready Retrieval-Augmented Generation (RAG) system powered by an Agentic Architecture. This system leverages LangGraph for orchestration, multi-tier semantic caching for ultra-low latency, and cross-encoder reranking for maximum retrieval accuracy.
+![Python](https://img.shields.io/badge/Python-3.12-blue.svg)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688.svg?logo=fastapi)
+![LangGraph](https://img.shields.io/badge/LangGraph-Agentic-FF9900.svg)
+![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED.svg?logo=docker)
+![AWS Fargate](https://img.shields.io/badge/AWS-Fargate-232F3E.svg?logo=amazon-aws)
 
----
+An enterprise-grade, stateful Agentic Retrieval-Augmented Generation (RAG) system. This project leverages intelligent AI agents to route queries, retrieve context from massive document stores, cache semantic answers, and block adversarial inputs.
 
-## 🏗️ Architecture & Core Components
+## ✨ Features
 
-### 1. Agentic Workflow (LangGraph)
-Unlike traditional linear RAG chains, this system relies on a directed graph of specialized nodes:
-- **NeMo Guardrails Gatekeeper**: Validates the safety, relevance, and policy alignment of user queries *before* any LLM processing occurs.
-- **Planner Node**: Analyzes intent, checks the local L1 Cache, and refines the query for optimal retrieval.
-- **Retriever Node**: Executes a two-stage semantic search process.
-- **Responder Node**: Synthesizes the final answer using the LLM and commits the result to the cache.
-
-### 2. Multi-Tier Semantic Caching
-To dramatically reduce API costs and latency, the system implements two layers of caching:
-- **L1 Cache (Redis)**: Runs locally. The `planner_node` performs a vector similarity check against past queries. If a new query is >95% similar to an existing one, the entire LLM generation pipeline is bypassed.
-- **L2 Edge Cache (Portkey)**: If the local cache misses, requests sent to the LLM are cached at the edge API layer using Portkey's `x-portkey-cache: semantic` headers.
-
-### 3. Advanced Two-Stage Retrieval
-Ensures the LLM is only fed the highest quality context:
-- **Base Retrieval (Qdrant)**: A local SQLite-backed Qdrant vector database quickly fetches the top 15 candidate document chunks using embeddings.
-- **Cross-Encoder Reranking (Local ML)**: A dedicated HuggingFace model (`ms-marco-MiniLM-L-6-v2`) runs locally to cross-reference the user's query against the 15 candidate chunks. It filters and compresses the result set down to the **top 5** most highly relevant chunks, drastically reducing noise and LLM hallucination.
-
-### 4. Enterprise LLM Gateway (Portkey)
-Instead of hardcoding LLM providers, all API calls are routed through Portkey AI. This enables:
-- **Failover Routing**: Seamlessly falls back from primary models (e.g., OpenAI `gpt-4o-mini`) to secondary models (e.g., Groq) if rate limits or downtimes occur.
-- **Observability**: Centralized logging and tracing for all LLM interactions.
+- **Agentic Routing (LangGraph):** Stateful agents dynamically route queries between L1 Semantic Cache, Qdrant Vector Search, or conversational memory.
+- **Hybrid Search:** Combines dense vector embeddings and sparse keyword search via Qdrant Cloud.
+- **Enterprise Guardrails:** NVIDIA NeMo Guardrails intercept and block adversarial prompts, jailbreaks, and off-topic queries before they hit the LLM.
+- **Semantic Caching:** Redis Enterprise Cloud caches previous answers, returning instant results for repeated or semantically identical questions.
+- **Serverless PostgreSQL:** Neon Postgres tracks document ingestion status and provides persistent memory (checkpoints) for the LangGraph agents.
+- **Evaluation Dashboard:** A dedicated Streamlit UI utilizing RAGAS to continuously evaluate Faithfulness, Answer Relevancy, and Context Precision.
+- **Cloud-Ready CI/CD:** Fully containerized with Docker, optimized with BuildKit caching, and ready for serverless deployment on AWS Fargate via GitHub Actions.
 
 ---
 
-## 🛠️ Tech Stack
-- **Backend**: FastAPI, Python 3.12+
-- **Package Manager**: `uv` (Ultra-fast Rust-based package management)
-- **Agent Orchestration**: LangGraph, LangChain
-- **Vector Database**: Qdrant (Local)
-- **Caching Engine**: Redis
-- **Security**: NVIDIA NeMo Guardrails
+## 🏗️ Architecture
+
+```mermaid
+graph TD
+    User([User Request]) --> Guardrails[NeMo Guardrails]
+    Guardrails -- Blocked --> Reject[Reject Request]
+    Guardrails -- Passed --> Router[LangGraph Agent]
+    
+    Router --> CacheCheck{Redis Cache}
+    CacheCheck -- Hit --> ReturnCache[Return Instant Answer]
+    CacheCheck -- Miss --> Qdrant[(Qdrant Cloud)]
+    
+    Qdrant --> LLM[Groq LLM]
+    LLM --> CacheSave[Save to Redis]
+    CacheSave --> Output([Final Answer])
+    
+    UI([Document Manager UI]) --> Postgres[(Neon Postgres DB)]
+    Postgres --> Ingestion[FastAPI Background Tasks]
+    Ingestion --> Qdrant
+```
 
 ---
 
-## 🚀 Getting Started
+## 💻 Tech Stack
+
+- **Framework:** FastAPI
+- **AI & Agents:** LangChain, LangGraph
+- **LLM Inference:** Groq (Llama 3 / Mixtral)
+- **Vector Store:** Qdrant Cloud
+- **Database (Metadata & State):** Neon PostgreSQL (Serverless)
+- **Cache:** Redis Enterprise Cloud
+- **Security:** NeMo Guardrails
+- **Observability:** LangSmith
+- **Evaluation:** Ragas & Streamlit
+- **DevOps:** Docker Compose, AWS ECS Fargate, GitHub Actions
+
+---
+
+## 🚀 Getting Started (Local Development)
 
 ### Prerequisites
-1. Python 3.12+
-2. [uv](https://github.com/astral-sh/uv) package manager
-3. Docker (for running local Redis)
-4. API Keys for OpenAI/Groq and Portkey AI
+- [Docker & Docker Compose](https://www.docker.com/)
+- API Keys for Groq, Qdrant Cloud, Neon Postgres, and Redis.
 
-### Installation
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/Manishydvv/Agentic-rag.git
-   cd Agentic-rag
-   ```
-2. Install dependencies using `uv`:
-   ```bash
-   uv sync
-   ```
-3. Set up environment variables:
-   Copy `.env.example` to `.env` and fill in your keys:
-   ```env
-   OPENAI_API_KEY=your_key_here
-   PORTKEY_API_KEY=your_key_here
-   REDIS_URL=redis://localhost:6379
-   ```
+### 1. Environment Setup
+Create a `.env` file in the root directory and populate it with your cloud credentials:
 
-### Running the System
-1. Start the local Redis container:
-   ```bash
-   docker run -d --name redis-stack-server -p 6379:6379 redis/redis-stack-server:latest
-   ```
-2. Start the FastAPI application:
-   ```bash
-   uv run uvicorn app.main:app --reload --port 8000
-   ```
-3. Test the query endpoint:
-   ```bash
-   Invoke-RestMethod -Method Post -Uri "http://localhost:8000/query" -Headers @{"Content-Type"="application/json"} -Body '{"query":"How do I deploy Agentic RAG?", "session_id":"test-1"}'
-   ```
+```env
+OPENAI_API_KEY=your_key
+GROQ_API_KEY=your_key
+QDRANT_URL=your_qdrant_url
+QDRANT_API_KEY=your_qdrant_key
+DATABASE_URL=your_neon_postgres_url
+REDIS_URL=your_redis_url
+LANGCHAIN_API_KEY=your_langsmith_key
+```
+
+### 2. Run the Application
+The project utilizes Docker BuildKit caching to ensure lightning-fast builds. 
+
+```bash
+docker-compose up --build
+```
+
+This will spin up two services:
+1. **API Backend:** `http://localhost:8000/docs` (FastAPI Swagger UI)
+2. **Evals Dashboard:** `http://localhost:8501` (Streamlit RAGAS Evaluation)
+
+### 3. Ingesting Documents
+You can ingest PDF, TXT, DOCX, or HTML files by opening the `index.html` frontend UI, or by directly calling the API endpoint:
+```bash
+curl -X POST "http://localhost:8000/api/documents" -F "file=@your_document.pdf"
+```
+The FastAPI background tasks will handle chunking, embedding, and syncing status to the Neon PostgreSQL database.
 
 ---
 
-## 🗺️ Roadmap (Phase 5)
-The next major iteration (Phase 5) will transition the system from local file-based ingestion to a **Cloud-Native Automated Pipeline**.
-- **S3 Triggered Ingestion**: Uploading documents to AWS S3 will trigger Lambda functions to automatically parse, chunk, and embed documents into a managed Qdrant Cloud cluster.
-- **Serverless Scaling**: Decoupling the ingestion pipeline from the query API for massive scalability.
+## ☁️ Deployment
+
+This project is configured for a highly scalable, serverless deployment on **AWS ECS Fargate**.
+
+For step-by-step AWS CLI deployment instructions and architectural strategies (Lean Startup vs. Enterprise), please refer to the [Deployment Guide](deployment.md).
+
+Automated CI/CD is configured via `.github/workflows/deploy.yml`. Upon pushing to the `main` branch, GitHub Actions will build the Docker image and seamlessly update the Fargate instances.
+
+---
+
+## 🛡️ Security
+
+This project contains highly sensitive API keys and database credentials in the `task-def.json` and `.env` files. Both of these files are securely ignored via `.gitignore` to prevent accidental leakage. **Never commit your `.env` or `task-def.json` files to source control.**

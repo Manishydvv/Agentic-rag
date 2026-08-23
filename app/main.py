@@ -85,7 +85,8 @@ async def query_agent(request: QueryRequest):
     # Configure checkpointer thread
     config = {"configurable": {"thread_id": request.session_id or "default"}}
     
-    result = await app_graph.ainvoke(inputs, config=config)
+    import asyncio
+    result = await asyncio.to_thread(app_graph.invoke, inputs, config=config)
     final_message = result["messages"][-1].content
     plan = result.get("plan", [])
     status = result.get("status", "Done")

@@ -80,7 +80,7 @@ def _render_metric_table(df: pd.DataFrame, metric_col: str, title: str):
     avg = df[metric_col].mean()
     st.markdown(f"**{title}** — AVG: {_badge(avg)} `{avg:.2f}` {_grade(avg)}")
     styled = df.style.applymap(_color_score, subset=[metric_col]).format({metric_col: "{:.3f}"})
-    st.dataframe(styled, use_container_width=True, hide_index=True)
+    st.dataframe(styled, width="stretch", hide_index=True)
 
 
 def _run_async(coro):
@@ -143,7 +143,7 @@ with tab1:
             "Expected Tool": s["expected_tools"][0] if s["expected_tools"] else "—",
         })
     df_golden = pd.DataFrame(rag_rows)
-    st.dataframe(df_golden, use_container_width=True, hide_index=True)
+    st.dataframe(df_golden, width="stretch", hide_index=True)
     st.caption(f"✅ {len(rag_rows)} golden RAG samples from 5 enterprise docs")
 
     st.divider()
@@ -164,7 +164,7 @@ with tab1:
             "Type": g["type"],
             "Description": g["description"],
         })
-    st.dataframe(pd.DataFrame(g_rows), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(g_rows), width="stretch", hide_index=True)
     st.caption("6 guardrails test cases: 3 adversarial (should block) + 3 legit (should pass)")
 
     with st.expander("View raw golden_dataset.json"):
@@ -190,12 +190,12 @@ with tab2:
     run_pipeline_btn = col_p1.button(
         "▶️ Run Live Pipeline",
         type="primary",
-        use_container_width=True,
+        width="stretch",
         disabled=st.session_state.pipeline_done,
     )
     reset_btn = col_p2.button(
         "🔄 Reset & Re-run",
-        use_container_width=True,
+        width="stretch",
         disabled=not st.session_state.pipeline_done,
     )
 
@@ -228,7 +228,7 @@ with tab2:
                 })
                 live_table_slot.dataframe(
                     pd.DataFrame(st.session_state.pipeline_rows),
-                    use_container_width=True,
+                    width="stretch",
                     hide_index=True,
                 )
                 progress_bar.progress(
@@ -276,7 +276,7 @@ with tab2:
                 "Actual": "Blocked" if r["actual_blocked"] else "Passed",
                 "Result": result_label,
             })
-        st.dataframe(pd.DataFrame(g_rows_live), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(g_rows_live), width="stretch", hide_index=True)
 
         mc1, mc2, mc3, mc4 = st.columns(4)
         mc1.metric("Correct", f"{g_metrics['correct']}/{g_metrics['total']}")
@@ -297,7 +297,7 @@ with tab2:
                 "Tool Called": s["actual_tools_called"][0] if s.get("actual_tools_called") else "—",
                 "Contexts Retrieved": len(s.get("actual_contexts", [])),
             })
-        st.dataframe(pd.DataFrame(resp_rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(resp_rows), width="stretch", hide_index=True)
 
         if st.session_state.guardrails_results:
             st.divider()
@@ -313,7 +313,7 @@ with tab2:
                     "Input": r["input"][:70],
                     "Result": result_label,
                 })
-            st.dataframe(pd.DataFrame(g_rows_prev), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(g_rows_prev), width="stretch", hide_index=True)
             gm = compute_guardrails_metrics(st.session_state.guardrails_results)
             mc1, mc2, mc3, mc4 = st.columns(4)
             mc1.metric("Correct", f"{gm['correct']}/{gm['total']}")
@@ -430,4 +430,4 @@ with tab3:
                 {"Metric": name, "Score": f"{score:.3f}" if pd.notna(score) else "—", "Grade": _grade(score) if pd.notna(score) else "—"}
                 for name, score in summary
             ])
-            st.dataframe(summary_df, use_container_width=True, hide_index=True)
+            st.dataframe(summary_df, width="stretch", hide_index=True)

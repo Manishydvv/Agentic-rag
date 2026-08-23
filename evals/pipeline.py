@@ -20,7 +20,7 @@ def dummy_span(name, **kwargs):
     yield
     logger.info(f"Finished: {name}")
 
-API_URL = "http://localhost:8000/query"
+API_URL = os.getenv("API_URL", "http://localhost:8000/query")
 RESPONSE_TRUNCATE = 300
 DELAY_BETWEEN_CALLS = 10  # seconds — stays within Groq RPM on the main key
 

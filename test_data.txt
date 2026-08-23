@@ -1,3 +1,0 @@
-Agentic RAG is an architecture where an AI agent dynamically decides when to search a vector database like Qdrant to find context for a user's question, rather than always searching every single time.
-Qdrant is a high-performance vector database. It can run locally in memory or on disk, and also in the cloud.
-Portkey acts as a gateway for LLMs. It provides features like load balancing, fallbacks, and observability.

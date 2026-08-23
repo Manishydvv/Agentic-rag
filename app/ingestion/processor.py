@@ -183,7 +183,10 @@ def process_file(
     logger.info(f"Processing: {filename}")
 
     try:
-        # ── Step 0: Check supported ───────────────────────────────────
+        # ── Step 0: Ensure Qdrant Collection Exists ─────────────────
+        ensure_collection()
+        
+        # ── Step 0.5: Check supported ───────────────────────────────────
         parser = SUPPORTED_EXTENSIONS.get(ext)
         if not parser:
             logger.warning(f"Skipping unsupported file: {filename}")

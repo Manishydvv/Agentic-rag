@@ -8,17 +8,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./qdrant_storage:/app/qdrant_storage
-      - ./metadata.sqlite:/app/metadata.sqlite
-      - ./checkpoints.sqlite:/app/checkpoints.sqlite
       - hf_cache:/root/.cache/huggingface
-    environment:
-      - REDIS_URL=redis://redis:6379
-      - QDRANT_URL=
     env_file:
       - .env
-    depends_on:
-      - redis
 
   evals:
     build:
@@ -27,22 +19,9 @@ services:
     ports:
       - "8501:8501"
     volumes:
-      - ./qdrant_storage:/app/qdrant_storage
-      - ./metadata.sqlite:/app/metadata.sqlite
-      - ./checkpoints.sqlite:/app/checkpoints.sqlite
       - hf_cache:/root/.cache/huggingface
-    environment:
-      - REDIS_URL=redis://redis:6379
-      - QDRANT_URL=
     env_file:
       - .env
-    depends_on:
-      - redis
-
-  redis:
-    image: redis:alpine
-    ports:
-      - "6379:6379"
 
 volumes:
   hf_cache:

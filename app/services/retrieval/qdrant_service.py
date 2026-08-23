@@ -21,7 +21,11 @@ if not settings.QDRANT_URL:
 
 # Initialize the client (URL takes precedence over local path)
 if settings.QDRANT_URL:
-    client = QdrantClient(url=settings.QDRANT_URL)
+    client = QdrantClient(
+        url=settings.QDRANT_URL,
+        api_key=settings.QDRANT_API_KEY,
+        timeout=60.0
+    )
 else:
     client = QdrantClient(path=QDRANT_PATH)
 
@@ -43,7 +47,23 @@ def ensure_collection(wipe: bool = False):
             collection_name=COLLECTION_NAME,
             vectors_config=VectorParams(size=EMBEDDING_DIM, distance=Distance.COSINE),
         )
-        logger.info(f"Collection '{COLLECTION_NAME}' created.")
+        # Create payload indexes for fields we filter on
+        client.create_payload_index(
+            collection_name=COLLECTION_NAME,
+            field_name="source",
+            field_schema=qdrant_models.PayloadSchemaType.KEYWORD,
+        )
+        client.create_payload_index(
+            collection_name=COLLECTION_NAME,
+            field_name="document_id",
+            field_schema=qdrant_models.PayloadSchemaType.KEYWORD,
+        )
+        client.create_payload_index(
+            collection_name=COLLECTION_NAME,
+            field_name="file_hash",
+            field_schema=qdrant_models.PayloadSchemaType.KEYWORD,
+        )
+        logger.info(f"Collection '{COLLECTION_NAME}' created with payload indexes.")
 
 
 def get_vector_store():

@@ -2,6 +2,11 @@ import time
 import os
 import uuid
 import shutil
+from dotenv import load_dotenv
+
+# Load .env into os.environ before anything else (crucial for LangSmith tracing when running locally without Docker)
+load_dotenv()
+
 from fastapi import FastAPI, BackgroundTasks, UploadFile, File, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -80,7 +85,7 @@ async def query_agent(request: QueryRequest):
     # Configure checkpointer thread
     config = {"configurable": {"thread_id": request.session_id or "default"}}
     
-    result = app_graph.invoke(inputs, config=config)
+    result = await app_graph.ainvoke(inputs, config=config)
     final_message = result["messages"][-1].content
     plan = result.get("plan", [])
     status = result.get("status", "Done")

@@ -11,10 +11,12 @@ ENV UV_HTTP_TIMEOUT=300
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 # Sync dependencies (including PyTorch CPU due to the extra index URL)
-RUN uv sync --frozen --no-install-project --no-dev
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project --no-dev
 
 COPY . .
-RUN uv sync --frozen --no-dev
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
 
 # Stage 2: Run
 FROM python:3.12-slim-bookworm

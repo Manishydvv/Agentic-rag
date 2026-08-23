@@ -68,6 +68,7 @@
             padding: 1.5rem;
             gap: 1.2rem;
             flex-shrink: 0;
+            overflow-y: auto;
         }
 
         .sidebar-brand {
@@ -228,6 +229,86 @@
             background: rgba(255, 68, 68, 0.1);
             border-color: rgba(255, 68, 68, 0.3);
             color: #ff6b6b;
+        }
+
+        /* Document Manager */
+        .btn-upload {
+            background: rgba(102, 126, 234, 0.15);
+            border: 1px solid rgba(102, 126, 234, 0.4);
+            color: var(--accent-1);
+            border-radius: var(--radius-xs);
+            padding: 0.25rem 0.5rem;
+            font-size: 0.65rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .btn-upload:hover {
+            background: var(--accent-1);
+            color: white;
+        }
+        .document-list {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            padding-right: 2px;
+        }
+        .doc-item {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            padding: 0.6rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+        }
+        .doc-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+            overflow: hidden;
+        }
+        .doc-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+        .doc-meta {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+        }
+        .doc-status-icon {
+            font-size: 0.7rem;
+        }
+        .doc-status-icon.active { color: #00d26a; }
+        .doc-status-icon.processing { color: #f39c12; animation: spin 2s linear infinite; display: inline-block; }
+        .doc-status-icon.failed { color: #ff4444; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        
+        .btn-delete {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.8rem;
+            padding: 0.2rem;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .btn-delete:hover {
+            color: #ff6b6b;
+            background: rgba(255, 68, 68, 0.1);
         }
 
         /* ════════════════════════════════════════════
@@ -586,6 +667,19 @@
                 </div>
             </div>
 
+            <!-- Documents -->
+            <div class="sidebar-section" style="display: flex; flex-direction: column; gap: 0.8rem; min-height: 250px; max-height: 400px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.2rem;">
+                    <h3 style="margin: 0;">📄 Documents</h3>
+                    <button class="btn-upload" onclick="document.getElementById('fileUpload').click()">+ Upload</button>
+                    <input type="file" id="fileUpload" style="display: none;" onchange="uploadDocument(event)" accept=".pdf,.docx,.txt,.html,.csv">
+                </div>
+                <div class="document-list" id="documentList">
+                    <!-- Documents will be injected here -->
+                    <div style="text-align: center; color: var(--text-muted); font-size: 0.75rem; padding: 1rem 0;">Loading...</div>
+                </div>
+            </div>
+
             <!-- Pipeline -->
             <div class="sidebar-section">
                 <h3>🏗️ Pipeline</h3>
@@ -836,6 +930,104 @@
 
         // Focus input on load
         document.getElementById('queryInput').focus();
+
+        // ──────────────────────────────────────────
+        // Document Manager
+        // ──────────────────────────────────────────
+        async function fetchDocuments() {
+            try {
+                const res = await fetch(`${API_URL}/api/documents`);
+                if (!res.ok) return;
+                const data = await res.json();
+                renderDocuments(data.documents || []);
+            } catch (err) {
+                console.error("Failed to fetch documents", err);
+            }
+        }
+
+        function renderDocuments(docs) {
+            const list = document.getElementById('documentList');
+            if (!list) return;
+            if (docs.length === 0) {
+                list.innerHTML = `<div style="text-align: center; color: var(--text-muted); font-size: 0.75rem; padding: 1rem 0;">No documents uploaded.</div>`;
+                return;
+            }
+
+            let html = '';
+            docs.forEach(doc => {
+                let icon = '';
+                if (doc.upload_status === 'active') icon = '<span class="doc-status-icon active">●</span>';
+                else if (doc.upload_status === 'processing') icon = '<span class="doc-status-icon processing">↻</span>';
+                else icon = '<span class="doc-status-icon failed">✖</span>';
+
+                let errorText = doc.error_message ? ` title="${doc.error_message}"` : '';
+
+                html += `
+                <div class="doc-item" ${errorText}>
+                    <div class="doc-info">
+                        <div class="doc-name" title="${doc.filename}">${doc.filename}</div>
+                        <div class="doc-meta">
+                            ${icon} ${doc.upload_status === 'active' ? `${doc.chunk_count} chunks` : doc.upload_status}
+                        </div>
+                    </div>
+                    <button class="btn-delete" onclick="deleteDocument('${doc.id}')" title="Delete">🗑️</button>
+                </div>
+                `;
+            });
+            list.innerHTML = html;
+        }
+
+        async function uploadDocument(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const formData = new FormData();
+            formData.append("file", file);
+            
+            // Optimistic UI update
+            const list = document.getElementById('documentList');
+            const tempHtml = `
+            <div class="doc-item">
+                <div class="doc-info">
+                    <div class="doc-name">${file.name}</div>
+                    <div class="doc-meta"><span class="doc-status-icon processing">↻</span> Uploading...</div>
+                </div>
+            </div>`;
+            if (list.innerHTML.includes("No documents uploaded")) {
+                list.innerHTML = tempHtml;
+            } else {
+                list.innerHTML = tempHtml + list.innerHTML;
+            }
+
+            try {
+                await fetch(`${API_URL}/api/documents`, {
+                    method: 'POST',
+                    body: formData
+                });
+                fetchDocuments();
+            } catch (err) {
+                console.error("Upload failed", err);
+                fetchDocuments();
+            }
+            
+            // Reset input so the same file can be uploaded again if needed
+            event.target.value = '';
+        }
+
+        async function deleteDocument(docId) {
+            if (!confirm("Are you sure you want to delete this document?")) return;
+            
+            try {
+                await fetch(`${API_URL}/api/documents/${docId}`, { method: 'DELETE' });
+                fetchDocuments();
+            } catch (err) {
+                console.error("Failed to delete document", err);
+            }
+        }
+
+        // Initial fetch and poll every 3 seconds
+        fetchDocuments();
+        setInterval(fetchDocuments, 3000);
     </script>
 </body>
 </html>

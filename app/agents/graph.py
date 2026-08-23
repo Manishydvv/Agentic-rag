@@ -1,5 +1,4 @@
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.sqlite import SqliteSaver
 from app.agents.state import AgentState
 from app.agents.nodes.planner import planner_node
 from app.agents.nodes.retriever import retriever_node
@@ -38,9 +37,23 @@ workflow.add_edge("responder", END)
 workflow.add_edge("cache_responder", END)
 
 # Checkpointer for Conversational Memory
-import sqlite3
-conn = sqlite3.connect("checkpoints.sqlite", check_same_thread=False)
-memory = SqliteSaver(conn)
+from psycopg_pool import ConnectionPool
+from langgraph.checkpoint.postgres import PostgresSaver
+from app.config import settings
+from app.utils.logger import logger
+
+try:
+    # Use a ConnectionPool instead of a single connection to survive Neon dropping idle connections
+    pool = ConnectionPool(
+        conninfo=settings.DATABASE_URL,
+        max_size=10,
+        kwargs={"autocommit": True}
+    )
+    memory = PostgresSaver(pool)
+    memory.setup() # Ensures checkpoints tables exist in PostgreSQL
+except Exception as e:
+    logger.error(f"Failed to connect to PostgreSQL for LangGraph Checkpoints: {e}")
+    memory = None
 
 # Compile the graph
 app_graph = workflow.compile(checkpointer=memory)

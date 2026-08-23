@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     PORTKEY_API_KEY: str = ""
     REDIS_URL: str = "redis://localhost:6379"
+    DATABASE_URL: str = "postgresql://user:password@localhost:5432/agentic_rag"
     CACHE_SIMILARITY_THRESHOLD: float = 0.95
     
     # Ingestion & Chunking Configuration
@@ -20,8 +21,9 @@ class Settings(BaseSettings):
     
     # Qdrant Configuration
     QDRANT_URL: str = ""
+    QDRANT_API_KEY: str = ""
     QDRANT_PATH: str = "./qdrant_storage"
-    COLLECTION_NAME: str = "documents"
+    COLLECTION_NAME: str = "agentic_rag_documents"
     EMBEDDING_DIM: int = 1536
     
     class Config:

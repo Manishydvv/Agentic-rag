@@ -9,7 +9,7 @@ from app.utils.logger import logger
 redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 # Redis key prefix for our cache
-CACHE_PREFIX = "rag_cache:"
+CACHE_PREFIX = "agentic_rag_cache:"
 
 
 def _cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:

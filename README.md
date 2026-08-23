@@ -11,16 +11,18 @@ An enterprise-grade, stateful Agentic Retrieval-Augmented Generation (RAG) syste
 ## ✨ Features
 
 - **Agentic Routing (LangGraph):** Stateful agents dynamically route queries between L1 Semantic Cache, Qdrant Vector Search, or conversational memory.
+- **AI Gateway (Portkey):** Centralized observability and routing. Uses **OpenAI** as the primary LLM, with automatic fallback to **Groq** for high reliability.
 - **Enterprise Guardrails:** NVIDIA NeMo Guardrails intercept and block adversarial prompts, jailbreaks, and off-topic queries before they hit the LLM.
 - **Semantic Caching:** Redis Enterprise Cloud caches previous answers, returning instant results for repeated or semantically identical questions.
 - **Serverless PostgreSQL:** Neon Postgres tracks document ingestion status and provides persistent memory (checkpoints) for the LangGraph agents.
-- **Evaluation Dashboard:** A dedicated Streamlit UI utilizing RAGAS to continuously evaluate Faithfulness, Answer Relevancy, and Context Precision.
+- **Evaluation Suite (`/evals`):** A dedicated Streamlit UI utilizing RAGAS to continuously evaluate RAG metrics, using Groq directly as an LLM-as-a-Judge.
 - **Cloud-Ready CI/CD:** Fully containerized with Docker, optimized with BuildKit caching, and ready for serverless deployment on AWS Fargate via GitHub Actions.
 
 ---
 
 ## 🏗️ Architecture
 
+### 1. API Flow (LangGraph & Portkey)
 ```mermaid
 graph TD
     %% Main API Flow
@@ -44,12 +46,38 @@ graph TD
     
     %% Exits
     CacheResponder --> ReturnCache([Return Cached Answer])
-    Responder -- saves to Redis --> ReturnAnswer([Return LLM Answer])
+    Responder -- saves to Redis --> ReturnAnswer([Return LLM Answer via Portkey])
     
     %% Document Ingestion (Background)
     UI([Document Upload UI]) --> DB[(Neon Postgres metadata)]
     DB --> BgTask[FastAPI Background Task]
     BgTask -- chunks & embeds --> Qdrant[(Qdrant Cloud Vector DB)]
+```
+
+### 2. Evaluation Suite (RAGAS)
+```mermaid
+graph TD
+    %% Eval Flow
+    StartEval([Run Evals Dashboard]) --> Streamlit[Streamlit UI /evals/app.py]
+    Streamlit --> LoadData[Load Golden Dataset]
+    
+    %% Phase 1
+    subgraph Phase 1 [Live Pipeline Testing]
+        LoadData --> HitAPI[Hit FastAPI /query]
+        HitAPI --> Capture[Capture Actual Responses & Contexts]
+    end
+    
+    %% Phase 2
+    subgraph Phase 2 [RAGAS LLM-as-a-Judge]
+        Capture --> Ragas[Ragas Metrics Engine]
+        Ragas -- uses JUDGE_GROQ --> Groq[Groq API direct]
+        
+        Groq --> Faithfulness[Compute Faithfulness]
+        Groq --> Relevancy[Compute Answer Relevancy]
+        Groq --> Precision[Compute Context Precision]
+    end
+    
+    Phase 2 --> Results([Display Metrics & Badges])
 ```
 
 ---
@@ -58,14 +86,25 @@ graph TD
 
 - **Framework:** FastAPI
 - **AI & Agents:** LangChain, LangGraph
-- **LLM Inference:** Groq (Llama 3 / Mixtral)
+- **LLM Inference:** OpenAI (Primary) & Groq (Fallback), routed via Portkey AI Gateway
 - **Vector Store:** Qdrant Cloud
 - **Database (Metadata & State):** Neon PostgreSQL (Serverless)
 - **Cache:** Redis Enterprise Cloud
 - **Security:** NeMo Guardrails
 - **Observability:** LangSmith
-- **Evaluation:** Ragas & Streamlit
+- **Evaluation (LLM-as-a-Judge):** Ragas & Streamlit (using Groq)
 - **DevOps:** Docker Compose, AWS ECS Fargate, GitHub Actions
+
+---
+
+## 🧪 Evaluation Suite (`/evals`)
+
+The repository includes a production-grade automated evaluation suite located in the `evals/` directory.
+
+- **Dashboard:** A visual Streamlit UI (`evals/app.py`) for running and visualizing evaluation pipelines.
+- **LLM-as-a-Judge:** Uses the Ragas framework to compute metrics like Faithfulness, Answer Relevancy, Context Precision, and Context Recall.
+- **Direct Groq Integration:** While the main API uses Portkey (OpenAI -> Groq), the Evaluation suite hits **Groq directly** (`groq/compound-mini`) as the judge model. 
+- **Rate-Limit Optimized:** The pipeline uses a separate `JUDGE_GROQ` API key to prevent exhausting production limits, and automatically batches requests with cooldowns to stay under Groq's strict 6,000 TPM limit.
 
 ---
 
@@ -73,19 +112,32 @@ graph TD
 
 ### Prerequisites
 - [Docker & Docker Compose](https://www.docker.com/)
-- API Keys for Groq, Qdrant Cloud, Neon Postgres, and Redis.
+- API Keys for OpenAI, Groq, Portkey, Qdrant, Neon Postgres, and Redis.
 
 ### 1. Environment Setup
 Create a `.env` file in the root directory and populate it with your cloud credentials:
 
 ```env
-OPENAI_API_KEY=your_key
-GROQ_API_KEY=your_key
-QDRANT_URL=your_qdrant_url
-QDRANT_API_KEY=your_qdrant_key
-DATABASE_URL=your_neon_postgres_url
-REDIS_URL=your_redis_url
-LANGCHAIN_API_KEY=your_langsmith_key
+OPENAI_API_KEY=your_openai_api_key_here
+GROQ_API_KEY=your_groq_api_key_here
+PORTKEY_API_KEY=your_portkey_api_key_here
+JUDGE_GROQ=your_secondary_groq_key_for_evals # Optional: protects production limits
+
+# Qdrant Cloud Configuration
+QDRANT_URL=https://your-qdrant-cloud-cluster.qdrant.tech
+QDRANT_API_KEY=your_qdrant_api_key_here
+
+# LangSmith Tracing (Observability)
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
+LANGCHAIN_API_KEY=your_langsmith_api_key_here
+LANGCHAIN_PROJECT=Agentic-RAG
+
+# Managed PostgreSQL Configuration
+DATABASE_URL=postgresql://your_postgres_username:your_postgres_password@your-db-endpoint.co:5432/postgres
+
+# Managed Redis Configuration
+REDIS_URL=rediss://default:your_redis_password@your-redis-endpoint.upstash.io:30000
 ```
 
 ### 2. Run the Application
@@ -104,7 +156,6 @@ You can ingest PDF, TXT, DOCX, or HTML files by opening the `index.html` fronten
 ```bash
 curl -X POST "http://localhost:8000/api/documents" -F "file=@your_document.pdf"
 ```
-The FastAPI background tasks will handle chunking, embedding, and syncing status to the Neon PostgreSQL database.
 
 ---
 
@@ -112,12 +163,9 @@ The FastAPI background tasks will handle chunking, embedding, and syncing status
 
 This project is configured for a highly scalable, serverless deployment on **AWS ECS Fargate**.
 
-For step-by-step AWS CLI deployment instructions and architectural strategies (Lean Startup vs. Enterprise), please refer to the [Deployment Guide](deployment.md).
-
-Automated CI/CD is configured via `.github/workflows/deploy.yml`. Upon pushing to the `main` branch, GitHub Actions will build the Docker image and seamlessly update the Fargate instances.
+For step-by-step AWS CLI deployment instructions, please refer to the [Deployment Guide](deployment.md). Automated CI/CD is configured via `.github/workflows/deploy.yml`.
 
 ---
 
 ## 🛡️ Security
-
-This project contains highly sensitive API keys and database credentials in the `task-def.json` and `.env` files. Both of these files are securely ignored via `.gitignore` to prevent accidental leakage. **Never commit your `.env` or `task-def.json` files to source control.**
+**Never commit your `.env` or `task-def.json` files to source control.** They are ignored via `.gitignore`.
